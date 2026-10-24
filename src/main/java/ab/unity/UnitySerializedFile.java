@@ -19,6 +19,9 @@ package ab.unity;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -84,6 +87,9 @@ public class UnitySerializedFile {
     );
   }
 
+  List<Integer> typeList = new ArrayList<>();
+  public List<UnityFile> fileList = new ArrayList<>();
+
   public UnitySerializedFile(byte[] bytes) {
     ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
     // SerializedFile header (format, endianness)
@@ -112,43 +118,48 @@ public class UnitySerializedFile {
     int data04 = buffer.get();
     assert data04 == 0;
 
-    int count1 = buffer.getInt();
-    assert count1 > 0 && count1 < 352;
-    for (int i = 0; i < count1; i++) {
+    int typeCount = buffer.getInt();
+    assert typeCount > 0 && typeCount < 352;
+    for (int i = 0; i < typeCount; i++) {
       int persistentTypeID = buffer.getInt();
       assert Constant.PERSISTENT_TYPE_ID_SET.contains(persistentTypeID);
+      typeList.add(persistentTypeID);
       int data11 = buffer.get();
       assert data11 == 0;
       int scriptTypeIndex = buffer.getShort();
-      assert scriptTypeIndex == -1 || scriptTypeIndex >= 0 && scriptTypeIndex < count1;
+      assert scriptTypeIndex == -1 || scriptTypeIndex >= 0 && scriptTypeIndex < typeCount;
       UUID data12 = getUUID(buffer);
       if (scriptTypeIndex >= 0) {
         UUID data13 = getUUID(buffer);
       }
     }
 
-    int count2 = buffer.getInt();
-    assert count2 > 0 && count2 < 23551;
+    int objectCount = buffer.getInt();
+    assert objectCount > 0 && objectCount < 23551;
     while (buffer.position() % 4 != 0) {
       byte data21 = buffer.get();
       assert data21 == 0;
     }
     boolean fileSizeMatched = false;
-    long expectedOffset = 0;
-    for (int i = 0; i < count2; i++) {
-      long data22 = buffer.getLong();
-      assert data22 == i + 1;
+    long expectedOffset = dataOffset;
+    for (int i = 0; i < objectCount; i++) {
+      long objectId = buffer.getLong();
+      assert objectId == i + 1;
       long offset = buffer.getLong();
       assert offset >= 0;
+      offset += dataOffset;
       assert offset == expectedOffset;
       int size = buffer.getInt();
       assert size > 0 && size < 8400000;
-      long end = dataOffset + offset + size;
+      long end = offset + size;
       assert end <= fileSize;
       fileSizeMatched |= end == fileSize;
-      expectedOffset = end - dataOffset + 7 & ~7;
-      int data23 = buffer.getInt();
-      assert data23 >= 0 && data23 < count1;
+      expectedOffset = end + 7 & ~7;
+      int typeIndex = buffer.getInt();
+      assert typeIndex >= 0 && typeIndex < typeCount;
+      fileList.add(new UnityFile(typeList.get(typeIndex),
+          Arrays.copyOfRange(bytes, (int) offset, (int) end),
+          String.format("id: %d, offset: 0x%X, end: 0x%X", i, offset, end)));
     }
     assert fileSizeMatched;
 

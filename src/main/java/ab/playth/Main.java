@@ -17,6 +17,7 @@
 
 package ab.playth;
 
+import ab.unity.UnityFile;
 import ab.unity.UnitySerializedFile;
 
 import java.io.IOException;
@@ -31,7 +32,11 @@ public class Main {
     boolean assertsEnabled = false;
     assert assertsEnabled = true;
     if (!assertsEnabled) throw new AssertionError("java -ea");
+    for (UnityFile file : new UnitySerializedFile(Files.readAllBytes(Paths.get("sharedassets2.assets"))).fileList) {
+      if (!file.name.contains("Bored")) continue;
+      System.out.println(file.debug + ", name: " + file.name);
+    }
     for (Path path : Files.list(Paths.get(".")).collect(Collectors.toList()))
-      new UnitySerializedFile(Files.readAllBytes(path));
+      if (path.toString().endsWith(".assets")) new UnitySerializedFile(Files.readAllBytes(path));
   }
 }
